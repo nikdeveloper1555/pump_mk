@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 from binance.client import AsyncClient
 
-from config import bot, chat_id_dump, chat_id_pump, perc_deltas, time_frames
+from config import bot, chat_id_dump, chat_id_pump, perc_deltas, time_frames, ban_list, busd_pairs
 
 
 logging.basicConfig(format=u'%(filename)s [LINE:%(lineno)d] #%(levelname)-8s [%(asctime)s]  %(message)s',
@@ -47,30 +47,31 @@ async def pump_dump_signals(percent, time_delta):
                         "price": price
                     }
                 for k in old_price_list:
-                    if k in new_price_list:
-                        try:
-                            old_price = float(old_price_list[k]["price"])
-                            new_price = float(new_price_list[k]["price"])
-                            delta = new_price - old_price
-                            delta_perc = round(float((delta / old_price) * 100), 3)
-                            if abs(delta_perc) > percent:
-                                if delta_perc > 0:
-                                    text = f'✅ `{k}` is *PUMPING! +{delta_perc}%* in {time_delta} sec.\n' \
-                                           f'*Current price*: {new_price}'
-                                    await bot.send_message(chat_id=chat_id_pump, text=text, parse_mode='Markdown')
-                                    logging.info(f'{k} | Found LONG')
+                    if k in new_price_list and k not in ban_list:
+                        if k[-4] == 'B' and busd_pairs or k[-4] == 'U':
+                            try:
+                                old_price = float(old_price_list[k]["price"])
+                                new_price = float(new_price_list[k]["price"])
+                                delta = new_price - old_price
+                                delta_perc = round(float((delta / old_price) * 100), 3)
+                                if abs(delta_perc) > percent:
+                                    if delta_perc > 0:
+                                        text = f'✅ `{k}` is *PUMPING! +{delta_perc}%* in {time_delta} sec.\n' \
+                                               f'*Current price*: {new_price}'
+                                        await bot.send_message(chat_id=chat_id_pump, text=text, parse_mode='Markdown')
+                                        logging.info(f'{k} | Found LONG')
 
-                                elif delta_perc < 0:
-                                    text = f'🩸 `{k}` is *DUMPING! {delta_perc}%* in {time_delta} sec.\n' \
-                                           f'*Current price*: {new_price}'
-                                    await bot.send_message(chat_id=chat_id_dump, text=text, parse_mode='Markdown')
-                                    logging.info(f'{k} | Found SHORT')
-                                else:
-                                    pass
+                                    elif delta_perc < 0:
+                                        text = f'🩸 `{k}` is *DUMPING! {delta_perc}%* in {time_delta} sec.\n' \
+                                               f'*Current price*: {new_price}'
+                                        await bot.send_message(chat_id=chat_id_dump, text=text, parse_mode='Markdown')
+                                        logging.info(f'{k} | Found SHORT')
+                                    else:
+                                        pass
 
-                        except Exception as err:
-                            logging.error(f'{percent} | {time_delta} | {err}')
-                            pass
+                            except Exception as err:
+                                logging.error(f'{percent} | {time_delta} | {err}')
+                                pass
                 old_price_list = new_price_list
             end_func = time.time()
             func_duration = end_func - start_func
